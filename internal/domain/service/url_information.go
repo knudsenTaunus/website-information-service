@@ -7,13 +7,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/knudsenTaunus/website-information-service/domain/entity"
+	"github.com/knudsenTaunus/website-information-service/internal/domain/entity"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 )
 
 var (
-	wg                                                    sync.WaitGroup
 	externalLinkMutex, internalLinkMutex, headingMapMutex sync.RWMutex
 )
 
@@ -31,12 +30,13 @@ func (u *WebsiteInformation) GetWebsiteInformation(document io.ReadCloser) (*ent
 	if document == nil {
 		return nil, errors.New("failed to create information service - missing website")
 	}
-	information := u.tokanizeHTML(document)
-	brokenLinksChan := make(chan bool)
+	var wg sync.WaitGroup
+	information := u.collectInformation(document)
+	brokenLinksChan := make(chan bool, 1)
 
 	for link := range information.ExternalLinks {
 		wg.Add(1)
-		go u.checkLinkAccessability(link, brokenLinksChan)
+		go u.checkLinkAccessability(link, brokenLinksChan, &wg)
 	}
 
 	for range information.ExternalLinks {
@@ -44,17 +44,18 @@ func (u *WebsiteInformation) GetWebsiteInformation(document io.ReadCloser) (*ent
 			information.BrokenLinks++
 		}
 	}
-	wg.Done()
+
 	wg.Wait()
 	close(brokenLinksChan)
 	return information, nil
 }
 
-func (u *WebsiteInformation) tokanizeHTML(document io.ReadCloser) *entity.WebsiteInformation {
+func (u *WebsiteInformation) collectInformation(document io.ReadCloser) *entity.WebsiteInformation {
+	var wg sync.WaitGroup
 	tokenizer := html.NewTokenizer(document)
 	result := entity.NewWebsiteInformation()
-	getTitle := false
 
+	getTitle := false
 	for {
 		tt := tokenizer.Next()
 		token := tokenizer.Token()
@@ -75,7 +76,7 @@ func (u *WebsiteInformation) tokanizeHTML(document io.ReadCloser) *entity.Websit
 				for _, element := range token.Attr {
 					if element.Key == "href" {
 						wg.Add(1)
-						go u.registerLink(element.Val, result)
+						go u.registerLink(element.Val, result, &wg)
 					}
 				}
 			case atom.Head:
@@ -94,11 +95,11 @@ func (u *WebsiteInformation) tokanizeHTML(document io.ReadCloser) *entity.Websit
 				}
 			}
 		}
+		wg.Wait()
 	}
-
 }
 
-func (u *WebsiteInformation) registerLink(link string, result *entity.WebsiteInformation) {
+func (u *WebsiteInformation) registerLink(link string, result *entity.WebsiteInformation, wg *sync.WaitGroup) {
 	defer wg.Done()
 	if strings.HasPrefix(link, "http") {
 		externalLinkMutex.Lock()
@@ -115,11 +116,12 @@ func (u *WebsiteInformation) registerLink(link string, result *entity.WebsiteInf
 
 }
 
-func (u *WebsiteInformation) checkLinkAccessability(link string, c chan bool) {
+func (u *WebsiteInformation) checkLinkAccessability(link string, c chan bool, wg *sync.WaitGroup) {
 	defer wg.Done()
 	_, err := http.Get(link)
 	if err != nil {
 		c <- true
+		return
 	}
 	c <- false
 	return

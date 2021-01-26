@@ -2,12 +2,12 @@ package entity
 
 // WebsiteInformation Entity object for the retrieved website information
 type WebsiteInformation struct {
-	DoctypeVersion string
-	Title          string
-	Headings       map[string]int
-	ExternalLinks  map[string]int
-	InternalLinks  map[string]int
-	BrokenLinks    int
+	DoctypeVersion string         `json:"DoctypeVersion"`
+	Title          string         `json:"Title"`
+	Headings       map[string]int `json:"Headings"`
+	ExternalLinks  map[string]int `json:"ExternalLinks"`
+	InternalLinks  map[string]int `json:"InternalLinks"`
+	BrokenLinks    int            `json:"BrokenLinks"`
 }
 
 // NewWebsiteInformation Constructor for a new entity object for the retrieved website information
