@@ -16,27 +16,18 @@ var (
 	externalLinkMutex, internalLinkMutex, headingMapMutex sync.RWMutex
 )
 
-// WebsiteInformation to retrieve information about a website
-type WebsiteInformation struct {
-}
-
-// New is a constructor function to provide a new WebsiteInformation Service
-func New() *WebsiteInformation {
-	return &WebsiteInformation{}
-}
-
 // GetWebsiteInformation provides information about the specified website
-func (u *WebsiteInformation) GetWebsiteInformation(document io.ReadCloser) (*entity.WebsiteInformation, error) {
+func GetWebsiteInformation(document io.ReadCloser) (*entity.WebsiteInformation, error) {
 	if document == nil {
 		return nil, errors.New("failed to create information service - missing website")
 	}
 	var wg sync.WaitGroup
-	information := u.collectInformation(document)
+	information := collectInformation(document)
 	brokenLinksChan := make(chan bool, 1)
 
 	for link := range information.ExternalLinks {
 		wg.Add(1)
-		go u.checkLinkAccessability(link, brokenLinksChan, &wg)
+		go checkLinkAccessability(link, brokenLinksChan, &wg)
 	}
 
 	for range information.ExternalLinks {
@@ -50,7 +41,7 @@ func (u *WebsiteInformation) GetWebsiteInformation(document io.ReadCloser) (*ent
 	return information, nil
 }
 
-func (u *WebsiteInformation) collectInformation(document io.ReadCloser) *entity.WebsiteInformation {
+func collectInformation(document io.ReadCloser) *entity.WebsiteInformation {
 	var wg sync.WaitGroup
 	tokenizer := html.NewTokenizer(document)
 	result := entity.NewWebsiteInformation()
@@ -76,7 +67,7 @@ func (u *WebsiteInformation) collectInformation(document io.ReadCloser) *entity.
 				for _, element := range token.Attr {
 					if element.Key == "href" {
 						wg.Add(1)
-						go u.registerLink(element.Val, result, &wg)
+						go registerLink(element.Val, result, &wg)
 					}
 				}
 			case atom.Head:
@@ -99,7 +90,7 @@ func (u *WebsiteInformation) collectInformation(document io.ReadCloser) *entity.
 	}
 }
 
-func (u *WebsiteInformation) registerLink(link string, result *entity.WebsiteInformation, wg *sync.WaitGroup) {
+func registerLink(link string, result *entity.WebsiteInformation, wg *sync.WaitGroup) {
 	defer wg.Done()
 	if strings.HasPrefix(link, "http") {
 		externalLinkMutex.Lock()
@@ -116,7 +107,7 @@ func (u *WebsiteInformation) registerLink(link string, result *entity.WebsiteInf
 
 }
 
-func (u *WebsiteInformation) checkLinkAccessability(link string, c chan bool, wg *sync.WaitGroup) {
+func checkLinkAccessability(link string, c chan bool, wg *sync.WaitGroup) {
 	defer wg.Done()
 	_, err := http.Get(link)
 	if err != nil {

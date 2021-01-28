@@ -9,9 +9,7 @@ import (
 )
 
 // WebsiteInformationService Interface definition for usage inside handler
-type WebsiteInformationService interface {
-	GetWebsiteInformation(document io.ReadCloser) (*entity.WebsiteInformation, error)
-}
+type WebsiteInformationService func(document io.ReadCloser) (*entity.WebsiteInformation, error)
 
 // New returns a new handlerFunc for website information calls
 func New(websiteInformationService WebsiteInformationService) http.HandlerFunc {
@@ -22,7 +20,7 @@ func New(websiteInformationService WebsiteInformationService) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 
-		websiteInformation, err := websiteInformationService.GetWebsiteInformation(resp.Body)
+		websiteInformation, err := websiteInformationService(resp.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
