@@ -7,8 +7,7 @@ import (
 )
 
 func main() {
-	websiteInformationService := service.New()
-	websiteInformationHandler := handler.New(websiteInformationService)
+	websiteInformationHandler := handler.New(service.GetWebsiteInformation)
 	server := server.New(websiteInformationHandler)
 	server.Start()
 }
